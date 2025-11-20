@@ -1,0 +1,465 @@
+MIME-Version: 1.0
+Date: Mon, 26 May 2025 20:20:08 +0530
+Message-ID: <CALx3ST8jUDWm41A6jnr1KCPrUsEU46Y_4ZRXoE+p6=T3OyU_iA@mail.gmail.com>
+Subject: final backend
+From: Swetha <swethaswe18004@gmail.com>
+To: Srinidhi R <srinidhiravi02@gmail.com>
+Content-Type: multipart/alternative; boundary="000000000000da2b7c06360b0f68"
+
+--000000000000da2b7c06360b0f68
+Content-Type: text/plain; charset="UTF-8"
+
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import joblib
+from sentence_transformers import SentenceTransformer, util
+import numpy as np
+
+app = Flask(__name__)
+CORS(app)
+
+# Load ML models
+models_dict = {
+    'RandomForest': joblib.load(r"C:\Users\SWEETHA\OneDrive\Desktop\swetha
+2023\final project\RandomForest_model.pkl"),
+    'CatBoost': joblib.load(r"C:\Users\SWEETHA\OneDrive\Desktop\swetha 2023
+\final project\CatBoost_model.pkl"),
+    'LogisticRegression':
+joblib.load(r"C:\Users\SWEETHA\OneDrive\Desktop\swetha
+2023\final project\LogisticRegression_model.pkl"),
+    'SVC': joblib.load(r"C:\Users\SWEETHA\OneDrive\Desktop\swetha 2023\final
+project\SVC_model.pkl")
+}
+
+scaler = joblib.load(r"C:\Users\SWEETHA\OneDrive\Desktop\swetha 2023\final
+project\scaler.pkl")
+semantic_model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Suspicious phrases for semantic bio analysis
+suspicious_phrases = [
+    "Follow 4 Follow", "Gain followers fast", "Get rich quick", "Limited
+time offer",
+    "Earn money fast", "Boost your account now", "Amazing discount on likes"
+,
+    "100% guarantee on boosting your account", "Guaranteed results", "Exclusive
+deal"
+]
+
+# Semantic similarity for bio check
+def check_suspicious_bio(bio):
+    bio_embedding = semantic_model.encode(bio, convert_to_tensor=True)
+    for phrase in suspicious_phrases:
+        phrase_embedding = semantic_model.encode(phrase, convert_to_tensor=
+True)
+        similarity = util.pytorch_cos_sim(bio_embedding,
+phrase_embedding).item()
+        if similarity > 0.7:
+            return 1
+    return 0
+
+# Extract 11 features from 9 frontend inputs
+def extract_features(data):
+    username = data.get('username', '')
+    fullname = data.get('fullname', '')
+    bio = data.get('bio', '')
+
+    nums_len_username = sum(1 for c in username if c.isdigit()) / len(username)
+if username else 0
+    fullname_words = len(fullname.strip().split())
+    nums_len_fullname = sum(1 for c in fullname if c.isdigit()) / len(fullname)
+if fullname else 0
+    name_equals_username = int(username.strip().lower() ==
+fullname.strip().lower())
+    bio_length = len(bio)
+
+    profile_pic = int(data.get('profile_pic', False))
+    external_url = int(data.get('external_url', False))
+    is_private = int(data.get('is_private', False))
+    num_posts = int(data.get('num_posts', 0))
+    num_followers = int(data.get('num_followers', 0))
+    num_following = int(data.get('num_following', 0))
+
+    features = [
+        profile_pic,
+        nums_len_username,
+        fullname_words,
+        nums_len_fullname,
+        name_equals_username,
+        bio_length,
+        external_url,
+        is_private,
+        num_posts,
+        num_followers,
+        num_following
+    ]
+
+    return features, bio
+
+# Main API route
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.get_json()
+        detailed = data.get('detailed', False)
+
+        features, bio = extract_features(data)
+        features_scaled = scaler.transform([features])
+        bio_suspicion_score = check_suspicious_bio(bio)
+
+        all_predictions = {}
+
+        # Debugging: Print extracted features and suspicion score
+        print(f"Features: {features}")
+        print(f"Suspicion Score for Bio: {bio_suspicion_score}")
+
+        # Iterate through all models to predict
+        for model_name, model in models_dict.items():
+            prob_fake = model.predict_proba(features_scaled)[0][1]
+            weighted_score = (0.7 * prob_fake) + (0.3 * bio_suspicion_score)
+
+            # Debugging: Print prediction and prob_fake values
+            print(f"Model: {model_name}, prob_fake: {prob_fake},
+weighted_score: {weighted_score}")
+
+            # Assign prediction based on confidence score
+            if weighted_score >= 0.60:
+                label = "Fake Account"
+            else:
+                label = "Genuine Account"
+
+            # Add model prediction and confidence score to the dictionary
+            all_predictions[model_name] = {
+                "prediction": label,
+                "confidence_score": round(weighted_score, 4)
+            }
+
+        # Debugging: Print all predictions before selecting best model
+        print(f"All Predictions: {all_predictions}")
+
+        # Get the best model based on highest confidence score
+        best_model = max(all_predictions, key=lambda m: all_predictions[m][
+"confidence_score"])
+        best_result = all_predictions[best_model]
+
+        response = {
+            "best_model_used": best_model,
+            "prediction": best_result["prediction"],
+            "confidence_score": best_result["confidence_score"]
+        }
+
+        # If detailed flag is True, include all model predictions
+        if detailed:
+            response["all_model_predictions"] = all_predictions
+
+        # Debugging: Print response before returning
+        print(f"Response: {response}")
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(debug=True)  # For HTTPS locally (if needed)
+
+--000000000000da2b7c06360b0f68
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<div dir=3D"ltr"><div style=3D"color:rgb(204,204,204);background-color:rgb(=
+31,31,31);font-family:Consolas,&quot;Courier New&quot;,monospace;font-size:=
+14px;line-height:19px;white-space:pre"><div><span style=3D"color:rgb(197,13=
+4,192)">from</span> flask <span style=3D"color:rgb(197,134,192)">import</sp=
+an> Flask, request, jsonify</div><div><span style=3D"color:rgb(197,134,192)=
+">from</span> flask_cors <span style=3D"color:rgb(197,134,192)">import</spa=
+n> CORS</div><div><span style=3D"color:rgb(197,134,192)">import</span> jobl=
+ib</div><div><span style=3D"color:rgb(197,134,192)">from</span> sentence_tr=
+ansformers <span style=3D"color:rgb(197,134,192)">import</span> SentenceTra=
+nsformer, util</div><div><span style=3D"color:rgb(197,134,192)">import</spa=
+n> numpy <span style=3D"color:rgb(197,134,192)">as</span> np</div><br><div>=
+app <span style=3D"color:rgb(212,212,212)">=3D</span> Flask(<span style=3D"=
+color:rgb(156,220,254)">__name__</span>)</div><div>CORS(app)</div><br><div>=
+<span style=3D"color:rgb(106,153,85)"># Load ML models</span></div><div>mod=
+els_dict <span style=3D"color:rgb(212,212,212)">=3D</span> {</div><div>=C2=
+=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&#39;RandomForest&#39;</s=
+pan>: joblib.load(<span style=3D"color:rgb(86,156,214)">r</span><span style=
+=3D"color:rgb(209,105,105)">&quot;C:</span><span style=3D"color:rgb(215,186=
+,125)">\U</span><span style=3D"color:rgb(209,105,105)">sers\SWEETHA</span><=
+span style=3D"color:rgb(215,186,125)">\O</span><span style=3D"color:rgb(209=
+,105,105)">neDrive\Desktop\swetha 2023</span><span style=3D"color:rgb(215,1=
+86,125)">\f</span><span style=3D"color:rgb(209,105,105)">inal project</span=
+><span style=3D"color:rgb(215,186,125)">\R</span><span style=3D"color:rgb(2=
+09,105,105)">andomForest_model.pkl&quot;</span>),</div><div>=C2=A0 =C2=A0 <=
+span style=3D"color:rgb(206,145,120)">&#39;CatBoost&#39;</span>: joblib.loa=
+d(<span style=3D"color:rgb(86,156,214)">r</span><span style=3D"color:rgb(20=
+9,105,105)">&quot;C:</span><span style=3D"color:rgb(215,186,125)">\U</span>=
+<span style=3D"color:rgb(209,105,105)">sers\SWEETHA</span><span style=3D"co=
+lor:rgb(215,186,125)">\O</span><span style=3D"color:rgb(209,105,105)">neDri=
+ve\Desktop\swetha 2023</span><span style=3D"color:rgb(215,186,125)">\f</spa=
+n><span style=3D"color:rgb(209,105,105)">inal project</span><span style=3D"=
+color:rgb(215,186,125)">\C</span><span style=3D"color:rgb(209,105,105)">atB=
+oost_model.pkl&quot;</span>),</div><div>=C2=A0 =C2=A0 <span style=3D"color:=
+rgb(206,145,120)">&#39;LogisticRegression&#39;</span>: joblib.load(<span st=
+yle=3D"color:rgb(86,156,214)">r</span><span style=3D"color:rgb(209,105,105)=
+">&quot;C:</span><span style=3D"color:rgb(215,186,125)">\U</span><span styl=
+e=3D"color:rgb(209,105,105)">sers\SWEETHA</span><span style=3D"color:rgb(21=
+5,186,125)">\O</span><span style=3D"color:rgb(209,105,105)">neDrive\Desktop=
+\swetha 2023</span><span style=3D"color:rgb(215,186,125)">\f</span><span st=
+yle=3D"color:rgb(209,105,105)">inal project</span><span style=3D"color:rgb(=
+215,186,125)">\L</span><span style=3D"color:rgb(209,105,105)">ogisticRegres=
+sion_model.pkl&quot;</span>),</div><div>=C2=A0 =C2=A0 <span style=3D"color:=
+rgb(206,145,120)">&#39;SVC&#39;</span>: joblib.load(<span style=3D"color:rg=
+b(86,156,214)">r</span><span style=3D"color:rgb(209,105,105)">&quot;C:</spa=
+n><span style=3D"color:rgb(215,186,125)">\U</span><span style=3D"color:rgb(=
+209,105,105)">sers\SWEETHA</span><span style=3D"color:rgb(215,186,125)">\O<=
+/span><span style=3D"color:rgb(209,105,105)">neDrive\Desktop\swetha 2023</s=
+pan><span style=3D"color:rgb(215,186,125)">\f</span><span style=3D"color:rg=
+b(209,105,105)">inal project\SVC_model.pkl&quot;</span>)</div><div>}</div><=
+br><div>scaler <span style=3D"color:rgb(212,212,212)">=3D</span> joblib.loa=
+d(<span style=3D"color:rgb(86,156,214)">r</span><span style=3D"color:rgb(20=
+9,105,105)">&quot;C:</span><span style=3D"color:rgb(215,186,125)">\U</span>=
+<span style=3D"color:rgb(209,105,105)">sers\SWEETHA</span><span style=3D"co=
+lor:rgb(215,186,125)">\O</span><span style=3D"color:rgb(209,105,105)">neDri=
+ve\Desktop\swetha 2023</span><span style=3D"color:rgb(215,186,125)">\f</spa=
+n><span style=3D"color:rgb(209,105,105)">inal project\scaler.pkl&quot;</spa=
+n>)</div><div>semantic_model <span style=3D"color:rgb(212,212,212)">=3D</sp=
+an> SentenceTransformer(<span style=3D"color:rgb(206,145,120)">&#39;all-Min=
+iLM-L6-v2&#39;</span>)</div><br><div><span style=3D"color:rgb(106,153,85)">=
+# Suspicious phrases for semantic bio analysis</span></div><div>suspicious_=
+phrases <span style=3D"color:rgb(212,212,212)">=3D</span> [</div><div>=C2=
+=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&quot;Follow 4 Follow&quo=
+t;</span>, <span style=3D"color:rgb(206,145,120)">&quot;Gain followers fast=
+&quot;</span>, <span style=3D"color:rgb(206,145,120)">&quot;Get rich quick&=
+quot;</span>, <span style=3D"color:rgb(206,145,120)">&quot;Limited time off=
+er&quot;</span>,</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,1=
+20)">&quot;Earn money fast&quot;</span>, <span style=3D"color:rgb(206,145,1=
+20)">&quot;Boost your account now&quot;</span>, <span style=3D"color:rgb(20=
+6,145,120)">&quot;Amazing discount on likes&quot;</span>,</div><div>=C2=A0 =
+=C2=A0 <span style=3D"color:rgb(206,145,120)">&quot;100</span><span style=
+=3D"color:rgb(86,156,214)">% g</span><span style=3D"color:rgb(206,145,120)"=
+>uarantee on boosting your account&quot;</span>, <span style=3D"color:rgb(2=
+06,145,120)">&quot;Guaranteed results&quot;</span>, <span style=3D"color:rg=
+b(206,145,120)">&quot;Exclusive deal&quot;</span></div><div>]</div><br><div=
+><span style=3D"color:rgb(106,153,85)"># Semantic similarity for bio check<=
+/span></div><div><span style=3D"color:rgb(86,156,214)">def</span> <span sty=
+le=3D"color:rgb(220,220,170)">check_suspicious_bio</span>(<span style=3D"co=
+lor:rgb(156,220,254)">bio</span>):</div><div>=C2=A0 =C2=A0 bio_embedding <s=
+pan style=3D"color:rgb(212,212,212)">=3D</span> semantic_model.encode(bio, =
+<span style=3D"color:rgb(156,220,254)">convert_to_tensor</span><span style=
+=3D"color:rgb(212,212,212)">=3D</span><span style=3D"color:rgb(86,156,214)"=
+>True</span>)</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(197,134,192)=
+">for</span> phrase <span style=3D"color:rgb(197,134,192)">in</span> suspic=
+ious_phrases:</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 phrase_embedding <span =
+style=3D"color:rgb(212,212,212)">=3D</span> semantic_model.encode(phrase, <=
+span style=3D"color:rgb(156,220,254)">convert_to_tensor</span><span style=
+=3D"color:rgb(212,212,212)">=3D</span><span style=3D"color:rgb(86,156,214)"=
+>True</span>)</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 similarity <span style=
+=3D"color:rgb(212,212,212)">=3D</span> util.pytorch_cos_sim(bio_embedding, =
+phrase_embedding).item()</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=
+=3D"color:rgb(197,134,192)">if</span> similarity <span style=3D"color:rgb(2=
+12,212,212)">&gt;</span> <span style=3D"color:rgb(181,206,168)">0.7</span>:=
+</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:r=
+gb(197,134,192)">return</span> <span style=3D"color:rgb(181,206,168)">1</sp=
+an></div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(197,134,192)">return</=
+span> <span style=3D"color:rgb(181,206,168)">0</span></div><br><div><span s=
+tyle=3D"color:rgb(106,153,85)"># Extract 11 features from 9 frontend inputs=
+</span></div><div><span style=3D"color:rgb(86,156,214)">def</span> <span st=
+yle=3D"color:rgb(220,220,170)">extract_features</span>(<span style=3D"color=
+:rgb(156,220,254)">data</span>):</div><div>=C2=A0 =C2=A0 username <span sty=
+le=3D"color:rgb(212,212,212)">=3D</span> data.get(<span style=3D"color:rgb(=
+206,145,120)">&#39;username&#39;</span>, <span style=3D"color:rgb(206,145,1=
+20)">&#39;&#39;</span>)</div><div>=C2=A0 =C2=A0 fullname <span style=3D"col=
+or:rgb(212,212,212)">=3D</span> data.get(<span style=3D"color:rgb(206,145,1=
+20)">&#39;fullname&#39;</span>, <span style=3D"color:rgb(206,145,120)">&#39=
+;&#39;</span>)</div><div>=C2=A0 =C2=A0 bio <span style=3D"color:rgb(212,212=
+,212)">=3D</span> data.get(<span style=3D"color:rgb(206,145,120)">&#39;bio&=
+#39;</span>, <span style=3D"color:rgb(206,145,120)">&#39;&#39;</span>)</div=
+><br><div>=C2=A0 =C2=A0 nums_len_username <span style=3D"color:rgb(212,212,=
+212)">=3D</span> <span style=3D"color:rgb(220,220,170)">sum</span>(<span st=
+yle=3D"color:rgb(181,206,168)">1</span> <span style=3D"color:rgb(197,134,19=
+2)">for</span> c <span style=3D"color:rgb(197,134,192)">in</span> username =
+<span style=3D"color:rgb(197,134,192)">if</span> c.isdigit()) <span style=
+=3D"color:rgb(212,212,212)">/</span> <span style=3D"color:rgb(220,220,170)"=
+>len</span>(username) <span style=3D"color:rgb(197,134,192)">if</span> user=
+name <span style=3D"color:rgb(197,134,192)">else</span> <span style=3D"colo=
+r:rgb(181,206,168)">0</span></div><div>=C2=A0 =C2=A0 fullname_words <span s=
+tyle=3D"color:rgb(212,212,212)">=3D</span> <span style=3D"color:rgb(220,220=
+,170)">len</span>(fullname.strip().split())</div><div>=C2=A0 =C2=A0 nums_le=
+n_fullname <span style=3D"color:rgb(212,212,212)">=3D</span> <span style=3D=
+"color:rgb(220,220,170)">sum</span>(<span style=3D"color:rgb(181,206,168)">=
+1</span> <span style=3D"color:rgb(197,134,192)">for</span> c <span style=3D=
+"color:rgb(197,134,192)">in</span> fullname <span style=3D"color:rgb(197,13=
+4,192)">if</span> c.isdigit()) <span style=3D"color:rgb(212,212,212)">/</sp=
+an> <span style=3D"color:rgb(220,220,170)">len</span>(fullname) <span style=
+=3D"color:rgb(197,134,192)">if</span> fullname <span style=3D"color:rgb(197=
+,134,192)">else</span> <span style=3D"color:rgb(181,206,168)">0</span></div=
+><div>=C2=A0 =C2=A0 name_equals_username <span style=3D"color:rgb(212,212,2=
+12)">=3D</span> <span style=3D"color:rgb(78,201,176)">int</span>(username.s=
+trip().lower() <span style=3D"color:rgb(212,212,212)">=3D=3D</span> fullnam=
+e.strip().lower())</div><div>=C2=A0 =C2=A0 bio_length <span style=3D"color:=
+rgb(212,212,212)">=3D</span> <span style=3D"color:rgb(220,220,170)">len</sp=
+an>(bio)</div><br><div>=C2=A0 =C2=A0 profile_pic <span style=3D"color:rgb(2=
+12,212,212)">=3D</span> <span style=3D"color:rgb(78,201,176)">int</span>(da=
+ta.get(<span style=3D"color:rgb(206,145,120)">&#39;profile_pic&#39;</span>,=
+ <span style=3D"color:rgb(86,156,214)">False</span>))</div><div>=C2=A0 =C2=
+=A0 external_url <span style=3D"color:rgb(212,212,212)">=3D</span> <span st=
+yle=3D"color:rgb(78,201,176)">int</span>(data.get(<span style=3D"color:rgb(=
+206,145,120)">&#39;external_url&#39;</span>, <span style=3D"color:rgb(86,15=
+6,214)">False</span>))</div><div>=C2=A0 =C2=A0 is_private <span style=3D"co=
+lor:rgb(212,212,212)">=3D</span> <span style=3D"color:rgb(78,201,176)">int<=
+/span>(data.get(<span style=3D"color:rgb(206,145,120)">&#39;is_private&#39;=
+</span>, <span style=3D"color:rgb(86,156,214)">False</span>))</div><div>=C2=
+=A0 =C2=A0 num_posts <span style=3D"color:rgb(212,212,212)">=3D</span> <spa=
+n style=3D"color:rgb(78,201,176)">int</span>(data.get(<span style=3D"color:=
+rgb(206,145,120)">&#39;num_posts&#39;</span>, <span style=3D"color:rgb(181,=
+206,168)">0</span>))</div><div>=C2=A0 =C2=A0 num_followers <span style=3D"c=
+olor:rgb(212,212,212)">=3D</span> <span style=3D"color:rgb(78,201,176)">int=
+</span>(data.get(<span style=3D"color:rgb(206,145,120)">&#39;num_followers&=
+#39;</span>, <span style=3D"color:rgb(181,206,168)">0</span>))</div><div>=
+=C2=A0 =C2=A0 num_following <span style=3D"color:rgb(212,212,212)">=3D</spa=
+n> <span style=3D"color:rgb(78,201,176)">int</span>(data.get(<span style=3D=
+"color:rgb(206,145,120)">&#39;num_following&#39;</span>, <span style=3D"col=
+or:rgb(181,206,168)">0</span>))</div><br><div>=C2=A0 =C2=A0 features <span =
+style=3D"color:rgb(212,212,212)">=3D</span> [</div><div>=C2=A0 =C2=A0 =C2=
+=A0 =C2=A0 profile_pic,</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 nums_len_user=
+name,</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 fullname_words,</div><div>=C2=
+=A0 =C2=A0 =C2=A0 =C2=A0 nums_len_fullname,</div><div>=C2=A0 =C2=A0 =C2=A0 =
+=C2=A0 name_equals_username,</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 bio_leng=
+th,</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 external_url,</div><div>=C2=A0 =
+=C2=A0 =C2=A0 =C2=A0 is_private,</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 num_=
+posts,</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 num_followers,</div><div>=C2=
+=A0 =C2=A0 =C2=A0 =C2=A0 num_following</div><div>=C2=A0 =C2=A0 ]</div><br><=
+div>=C2=A0 =C2=A0 <span style=3D"color:rgb(197,134,192)">return</span> feat=
+ures, bio</div><br><div><span style=3D"color:rgb(106,153,85)"># Main API ro=
+ute</span></div><div><span style=3D"color:rgb(220,220,170)">@app.route</spa=
+n>(<span style=3D"color:rgb(206,145,120)">&#39;/predict&#39;</span>, <span =
+style=3D"color:rgb(156,220,254)">methods</span><span style=3D"color:rgb(212=
+,212,212)">=3D</span>[<span style=3D"color:rgb(206,145,120)">&#39;POST&#39;=
+</span>])</div><div><span style=3D"color:rgb(86,156,214)">def</span> <span =
+style=3D"color:rgb(220,220,170)">predict</span>():</div><div>=C2=A0 =C2=A0 =
+<span style=3D"color:rgb(197,134,192)">try</span>: =C2=A0 =C2=A0</div><div>=
+=C2=A0 =C2=A0 =C2=A0 =C2=A0 data <span style=3D"color:rgb(212,212,212)">=3D=
+</span> request.get_json()</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 detailed <=
+span style=3D"color:rgb(212,212,212)">=3D</span> data.get(<span style=3D"co=
+lor:rgb(206,145,120)">&#39;detailed&#39;</span>, <span style=3D"color:rgb(8=
+6,156,214)">False</span>)</div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 feature=
+s, bio <span style=3D"color:rgb(212,212,212)">=3D</span> extract_features(d=
+ata)</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 features_scaled <span style=3D"c=
+olor:rgb(212,212,212)">=3D</span> scaler.transform([features])</div><div>=
+=C2=A0 =C2=A0 =C2=A0 =C2=A0 bio_suspicion_score <span style=3D"color:rgb(21=
+2,212,212)">=3D</span> check_suspicious_bio(bio)</div><br><div>=C2=A0 =C2=
+=A0 =C2=A0 =C2=A0 all_predictions <span style=3D"color:rgb(212,212,212)">=
+=3D</span> {}</div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"colo=
+r:rgb(106,153,85)"># Debugging: Print extracted features and suspicion scor=
+e</span></div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(220=
+,220,170)">print</span>(<span style=3D"color:rgb(86,156,214)">f</span><span=
+ style=3D"color:rgb(206,145,120)">&quot;Features: </span><span style=3D"col=
+or:rgb(86,156,214)">{</span>features<span style=3D"color:rgb(86,156,214)">}=
+</span><span style=3D"color:rgb(206,145,120)">&quot;</span>)</div><div>=C2=
+=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(220,220,170)">print</span=
+>(<span style=3D"color:rgb(86,156,214)">f</span><span style=3D"color:rgb(20=
+6,145,120)">&quot;Suspicion Score for Bio: </span><span style=3D"color:rgb(=
+86,156,214)">{</span>bio_suspicion_score<span style=3D"color:rgb(86,156,214=
+)">}</span><span style=3D"color:rgb(206,145,120)">&quot;</span>)</div><br><=
+div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(106,153,85)"># Ite=
+rate through all models to predict</span></div><div>=C2=A0 =C2=A0 =C2=A0 =
+=C2=A0 <span style=3D"color:rgb(197,134,192)">for</span> model_name, model =
+<span style=3D"color:rgb(197,134,192)">in</span> models_dict.items():</div>=
+<div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 prob_fake <span style=3D"col=
+or:rgb(212,212,212)">=3D</span> model.predict_proba(features_scaled)[<span =
+style=3D"color:rgb(181,206,168)">0</span>][<span style=3D"color:rgb(181,206=
+,168)">1</span>]</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 weight=
+ed_score <span style=3D"color:rgb(212,212,212)">=3D</span> (<span style=3D"=
+color:rgb(181,206,168)">0.7</span> <span style=3D"color:rgb(212,212,212)">*=
+</span> prob_fake) <span style=3D"color:rgb(212,212,212)">+</span> (<span s=
+tyle=3D"color:rgb(181,206,168)">0.3</span> <span style=3D"color:rgb(212,212=
+,212)">*</span> bio_suspicion_score)</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =
+=C2=A0 =C2=A0 </div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span st=
+yle=3D"color:rgb(106,153,85)"># Debugging: Print prediction and prob_fake v=
+alues</span></div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span styl=
+e=3D"color:rgb(220,220,170)">print</span>(<span style=3D"color:rgb(86,156,2=
+14)">f</span><span style=3D"color:rgb(206,145,120)">&quot;Model: </span><sp=
+an style=3D"color:rgb(86,156,214)">{</span>model_name<span style=3D"color:r=
+gb(86,156,214)">}</span><span style=3D"color:rgb(206,145,120)">, prob_fake:=
+ </span><span style=3D"color:rgb(86,156,214)">{</span>prob_fake<span style=
+=3D"color:rgb(86,156,214)">}</span><span style=3D"color:rgb(206,145,120)">,=
+ weighted_score: </span><span style=3D"color:rgb(86,156,214)">{</span>weigh=
+ted_score<span style=3D"color:rgb(86,156,214)">}</span><span style=3D"color=
+:rgb(206,145,120)">&quot;</span>)</div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0=
+ =C2=A0 =C2=A0 <span style=3D"color:rgb(106,153,85)"># Assign prediction ba=
+sed on confidence score</span></div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0=
+ =C2=A0 <span style=3D"color:rgb(197,134,192)">if</span> weighted_score <sp=
+an style=3D"color:rgb(212,212,212)">&gt;=3D</span> <span style=3D"color:rgb=
+(181,206,168)">0.60</span>:</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =
+=C2=A0 =C2=A0 =C2=A0 label <span style=3D"color:rgb(212,212,212)">=3D</span=
+> <span style=3D"color:rgb(206,145,120)">&quot;Fake Account&quot;</span></d=
+iv><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(=
+197,134,192)">else</span>:</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=
+=A0 =C2=A0 =C2=A0 label <span style=3D"color:rgb(212,212,212)">=3D</span> <=
+span style=3D"color:rgb(206,145,120)">&quot;Genuine Account&quot;</span></d=
+iv><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:=
+rgb(106,153,85)"># Add model prediction and confidence score to the diction=
+ary</span></div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 all_predicti=
+ons[model_name] <span style=3D"color:rgb(212,212,212)">=3D</span> {</div><d=
+iv>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"c=
+olor:rgb(206,145,120)">&quot;prediction&quot;</span>: label,</div><div>=C2=
+=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:r=
+gb(206,145,120)">&quot;confidence_score&quot;</span>: <span style=3D"color:=
+rgb(220,220,170)">round</span>(weighted_score, <span style=3D"color:rgb(181=
+,206,168)">4</span>)</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 }<=
+/div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(106,153,=
+85)"># Debugging: Print all predictions before selecting best model</span><=
+/div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(220,220,170)=
+">print</span>(<span style=3D"color:rgb(86,156,214)">f</span><span style=3D=
+"color:rgb(206,145,120)">&quot;All Predictions: </span><span style=3D"color=
+:rgb(86,156,214)">{</span>all_predictions<span style=3D"color:rgb(86,156,21=
+4)">}</span><span style=3D"color:rgb(206,145,120)">&quot;</span>)</div><br>=
+<div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(106,153,85)"># Ge=
+t the best model based on highest confidence score</span></div><div>=C2=A0 =
+=C2=A0 =C2=A0 =C2=A0 best_model <span style=3D"color:rgb(212,212,212)">=3D<=
+/span> <span style=3D"color:rgb(220,220,170)">max</span>(all_predictions, <=
+span style=3D"color:rgb(156,220,254)">key</span><span style=3D"color:rgb(21=
+2,212,212)">=3D</span><span style=3D"color:rgb(86,156,214)">lambda</span> <=
+span style=3D"color:rgb(156,220,254)">m</span>: all_predictions[m][<span st=
+yle=3D"color:rgb(206,145,120)">&quot;confidence_score&quot;</span>])</div><=
+div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 best_result <span style=3D"color:rgb(212,21=
+2,212)">=3D</span> all_predictions[best_model]</div><br><div>=C2=A0 =C2=A0 =
+=C2=A0 =C2=A0 response <span style=3D"color:rgb(212,212,212)">=3D</span> {<=
+/div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rg=
+b(206,145,120)">&quot;best_model_used&quot;</span>: best_model,</div><div>=
+=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,=
+120)">&quot;prediction&quot;</span>: best_result[<span style=3D"color:rgb(2=
+06,145,120)">&quot;prediction&quot;</span>],</div><div>=C2=A0 =C2=A0 =C2=A0=
+ =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&quot;confiden=
+ce_score&quot;</span>: best_result[<span style=3D"color:rgb(206,145,120)">&=
+quot;confidence_score&quot;</span>]</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 }=
+</div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(106,153=
+,85)"># If detailed flag is True, include all model predictions</span></div=
+><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(197,134,192)">if=
+</span> detailed:</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 =C2=A0 respo=
+nse[<span style=3D"color:rgb(206,145,120)">&quot;all_model_predictions&quot=
+;</span>] <span style=3D"color:rgb(212,212,212)">=3D</span> all_predictions=
+</div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(106,153=
+,85)"># Debugging: Print response before returning</span></div><div>=C2=A0 =
+=C2=A0 =C2=A0 =C2=A0 <span style=3D"color:rgb(220,220,170)">print</span>(<s=
+pan style=3D"color:rgb(86,156,214)">f</span><span style=3D"color:rgb(206,14=
+5,120)">&quot;Response: </span><span style=3D"color:rgb(86,156,214)">{</spa=
+n>response<span style=3D"color:rgb(86,156,214)">}</span><span style=3D"colo=
+r:rgb(206,145,120)">&quot;</span>)</div><br><div>=C2=A0 =C2=A0 =C2=A0 =C2=
+=A0 <span style=3D"color:rgb(197,134,192)">return</span> jsonify(response)<=
+/div><br><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(197,134,192)">except</=
+span> <span style=3D"color:rgb(78,201,176)">Exception</span> <span style=3D=
+"color:rgb(197,134,192)">as</span> e:</div><div>=C2=A0 =C2=A0 =C2=A0 =C2=A0=
+ <span style=3D"color:rgb(197,134,192)">return</span> jsonify({<span style=
+=3D"color:rgb(206,145,120)">&#39;error&#39;</span>: <span style=3D"color:rg=
+b(78,201,176)">str</span>(e)}), <span style=3D"color:rgb(181,206,168)">500<=
+/span></div><br><div><span style=3D"color:rgb(197,134,192)">if</span> <span=
+ style=3D"color:rgb(156,220,254)">__name__</span> <span style=3D"color:rgb(=
+212,212,212)">=3D=3D</span> <span style=3D"color:rgb(206,145,120)">&#39;__m=
+ain__&#39;</span>:</div><div>=C2=A0 =C2=A0 app.run(<span style=3D"color:rgb=
+(156,220,254)">debug</span><span style=3D"color:rgb(212,212,212)">=3D</span=
+><span style=3D"color:rgb(86,156,214)">True</span>) =C2=A0<span style=3D"co=
+lor:rgb(106,153,85)"># For HTTPS locally (if needed)</span></div><br><br></=
+div></div>
+
+--000000000000da2b7c06360b0f68--

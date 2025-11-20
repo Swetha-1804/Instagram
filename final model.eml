@@ -1,0 +1,430 @@
+MIME-Version: 1.0
+Date: Mon, 26 May 2025 20:21:23 +0530
+Message-ID: <CALx3ST8WO=PDD8MNMM+Wa9T0hznh4VqU7GhEALzgRcj07gR=gA@mail.gmail.com>
+Subject: final model
+From: Swetha <swethaswe18004@gmail.com>
+To: Srinidhi R <srinidhiravi02@gmail.com>
+Content-Type: multipart/alternative; boundary="0000000000004e9dfd06360b1479"
+
+--0000000000004e9dfd06360b1479
+Content-Type: text/plain; charset="UTF-8"
+
+ import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import joblib
+
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
+from sklearn.metrics import (
+    accuracy_score, classification_report, confusion_matrix,
+    roc_curve, auc, precision_score, recall_score, f1_score,
+    precision_recall_curve
+)
+from imblearn.over_sampling import SMOTE
+from catboost import CatBoostClassifier
+
+# Load dataset
+train_data = pd.read_csv(r"C:\Users\SWEETHA\Downloads\archive (4)\train.csv"
+)
+test_data = pd.read_csv(r"C:\Users\SWEETHA\Downloads\archive (4)\test.csv")
+
+# Fill missing values
+train_data.fillna(0, inplace=True)
+test_data.fillna(0, inplace=True)
+
+# Features
+selected_features = [
+    'profile pic', 'nums/length username', 'fullname words', 'nums/length
+fullname',
+    'name==username', 'description length', 'external URL', 'private',
+    '#posts', '#followers', '#follows'
+]
+
+X_train = train_data[selected_features]
+y_train = train_data['fake']
+X_test = test_data[selected_features]
+y_test = test_data['fake']
+
+# Scaling
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+# SMOTE
+smote = SMOTE(random_state=42)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train_scaled,
+y_train)
+
+# Hyperparameter Grids
+param_grid_rf = {'n_estimators': [100, 200], 'max_depth': [10, 20],
+'min_samples_split': [2, 5]}
+param_grid_lr = {'C': [0.1, 1, 10], 'solver': ['liblinear']}
+param_grid_cb = {'iterations': [100, 200], 'learning_rate': [0.05, 0.1],
+'depth': [3, 5]}
+param_grid_svc = {'C': [1, 10], 'kernel': ['linear', 'rbf']}
+
+# Models
+models = {
+    'RandomForest': GridSearchCV(RandomForestClassifier(random_state=42,
+class_weight='balanced'), param_grid_rf, cv=3, n_jobs=-1),
+    'LogisticRegression': GridSearchCV(LogisticRegression(max_iter=1000,
+class_weight='balanced', random_state=42), param_grid_lr, cv=3, n_jobs=-1),
+    'CatBoost': GridSearchCV(CatBoostClassifier(verbose=0, random_state=42,
+allow_writing_files=False), param_grid_cb, cv=3, n_jobs=-1),
+    'SVC': GridSearchCV(SVC(probability=True, class_weight='balanced',
+random_state=42), param_grid_svc, cv=3, n_jobs=-1)
+}
+
+# Train and Evaluate
+plt.figure(figsize=(8, 6))
+for name, grid in models.items():
+    print(f"\nTraining {name}...")
+    grid.fit(X_train_resampled, y_train_resampled)
+    best_model = grid.best_estimator_
+
+    y_prob = best_model.predict_proba(X_test_scaled)[:, 1]
+    threshold = 0.3
+    y_pred = (y_prob >= threshold).astype(int)
+
+    print(f"Best Params: {grid.best_params_}")
+    print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+    print(f"Precision: {precision_score(y_test, y_pred):.4f} | Recall:
+{recall_score(y_test,
+y_pred):.4f} | F1: {f1_score(y_test, y_pred):.4f}")
+    print("Classification Report:\n", classification_report(y_test, y_pred))
+    print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+
+    # ROC
+    fpr, tpr, _ = roc_curve(y_test, y_prob)
+    roc_auc = auc(fpr, tpr)
+    plt.plot(fpr, tpr, label=f'{name} (AUC = {roc_auc:.2f})')
+
+    # Save model
+    joblib.dump(best_model, f'{name}_model.pkl')
+
+# Final ROC Plot
+plt.plot([0, 1], [0, 1], linestyle='--', color='gray')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('ROC Curve Comparison')
+plt.legend()
+plt.tight_layout()
+plt.show()
+plt.close()
+
+# Precision-Recall Curve
+plt.figure(figsize=(8, 6))
+for name, grid in models.items():
+    best_model = grid.best_estimator_
+    y_prob = best_model.predict_proba(X_test_scaled)[:, 1]
+    precision, recall, _ = precision_recall_curve(y_test, y_prob)
+    plt.plot(recall, precision, label=name)
+
+plt.xlabel('Recall')
+plt.ylabel('Precision')
+plt.title('Precision-Recall Curve')
+plt.legend()
+plt.tight_layout()
+plt.show()
+plt.close()
+
+# Save Scaler
+joblib.dump(scaler, 'scaler.pkl')
+
+# Feature Importance (Random Forest)
+rf_model = models['RandomForest'].best_estimator_
+importances = rf_model.feature_importances_
+plt.figure(figsize=(10, 6))
+plt.barh(selected_features, importances)
+plt.xlabel("Importance")
+plt.title("Feature Importance (Random Forest)")
+plt.tight_layout()
+plt.show()
+plt.close()
+
+--0000000000004e9dfd06360b1479
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<div dir=3D"ltr"><div style=3D"color:rgb(204,204,204);background-color:rgb(=
+31,31,31);font-family:Consolas,&quot;Courier New&quot;,monospace;font-size:=
+14px;line-height:19px;white-space:pre">
+
+<div style=3D"line-height:19px"><div><span style=3D"color:rgb(197,134,192)"=
+>import</span> pandas <span style=3D"color:rgb(197,134,192)">as</span> pd</=
+div><div><span style=3D"color:rgb(197,134,192)">import</span> numpy <span s=
+tyle=3D"color:rgb(197,134,192)">as</span> np</div><div><span style=3D"color=
+:rgb(197,134,192)">import</span> matplotlib.pyplot <span style=3D"color:rgb=
+(197,134,192)">as</span> plt</div><div><span style=3D"color:rgb(197,134,192=
+)">import</span> joblib</div><br><div><span style=3D"color:rgb(197,134,192)=
+">from</span> sklearn.model_selection <span style=3D"color:rgb(197,134,192)=
+">import</span> train_test_split, GridSearchCV</div><div><span style=3D"col=
+or:rgb(197,134,192)">from</span> sklearn.preprocessing <span style=3D"color=
+:rgb(197,134,192)">import</span> StandardScaler</div><div><span style=3D"co=
+lor:rgb(197,134,192)">from</span> sklearn.ensemble <span style=3D"color:rgb=
+(197,134,192)">import</span> RandomForestClassifier</div><div><span style=
+=3D"color:rgb(197,134,192)">from</span> sklearn.linear_model <span style=3D=
+"color:rgb(197,134,192)">import</span> LogisticRegression</div><div><span s=
+tyle=3D"color:rgb(197,134,192)">from</span> sklearn.svm <span style=3D"colo=
+r:rgb(197,134,192)">import</span> SVC</div><div><span style=3D"color:rgb(19=
+7,134,192)">from</span> sklearn.metrics <span style=3D"color:rgb(197,134,19=
+2)">import</span> (</div><div>=C2=A0 =C2=A0 accuracy_score, classification_=
+report, confusion_matrix,</div><div>=C2=A0 =C2=A0 roc_curve, auc, precision=
+_score, recall_score, f1_score,</div><div>=C2=A0 =C2=A0 precision_recall_cu=
+rve</div><div>)</div><div><span style=3D"color:rgb(197,134,192)">from</span=
+> imblearn.over_sampling <span style=3D"color:rgb(197,134,192)">import</spa=
+n> SMOTE</div><div><span style=3D"color:rgb(197,134,192)">from</span> catbo=
+ost <span style=3D"color:rgb(197,134,192)">import</span> CatBoostClassifier=
+</div><br><div><span style=3D"color:rgb(106,153,85)"># Load dataset</span><=
+/div><div>train_data <span style=3D"color:rgb(212,212,212)">=3D</span> pd.r=
+ead_csv(<span style=3D"color:rgb(86,156,214)">r</span><span style=3D"color:=
+rgb(209,105,105)">&quot;C:</span><span style=3D"color:rgb(215,186,125)">\U<=
+/span><span style=3D"color:rgb(209,105,105)">sers\SWEETHA\Downloads</span><=
+span style=3D"color:rgb(215,186,125)">\a</span><span style=3D"color:rgb(209=
+,105,105)">rchive </span><span style=3D"color:rgb(206,145,120)">(</span><sp=
+an style=3D"color:rgb(209,105,105)">4</span><span style=3D"color:rgb(206,14=
+5,120)">)</span><span style=3D"color:rgb(215,186,125)">\t</span><span style=
+=3D"color:rgb(209,105,105)">rain.csv&quot;</span>)</div><div>test_data <spa=
+n style=3D"color:rgb(212,212,212)">=3D</span> pd.read_csv(<span style=3D"co=
+lor:rgb(86,156,214)">r</span><span style=3D"color:rgb(209,105,105)">&quot;C=
+:</span><span style=3D"color:rgb(215,186,125)">\U</span><span style=3D"colo=
+r:rgb(209,105,105)">sers\SWEETHA\Downloads</span><span style=3D"color:rgb(2=
+15,186,125)">\a</span><span style=3D"color:rgb(209,105,105)">rchive </span>=
+<span style=3D"color:rgb(206,145,120)">(</span><span style=3D"color:rgb(209=
+,105,105)">4</span><span style=3D"color:rgb(206,145,120)">)</span><span sty=
+le=3D"color:rgb(215,186,125)">\t</span><span style=3D"color:rgb(209,105,105=
+)">est.csv&quot;</span>)</div><br><div><span style=3D"color:rgb(106,153,85)=
+"># Fill missing values</span></div><div>train_data.fillna(<span style=3D"c=
+olor:rgb(181,206,168)">0</span>, <span style=3D"color:rgb(156,220,254)">inp=
+lace</span><span style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"=
+color:rgb(86,156,214)">True</span>)</div><div>test_data.fillna(<span style=
+=3D"color:rgb(181,206,168)">0</span>, <span style=3D"color:rgb(156,220,254)=
+">inplace</span><span style=3D"color:rgb(212,212,212)">=3D</span><span styl=
+e=3D"color:rgb(86,156,214)">True</span>)</div><br><div><span style=3D"color=
+:rgb(106,153,85)"># Features</span></div><div>selected_features <span style=
+=3D"color:rgb(212,212,212)">=3D</span> [</div><div>=C2=A0 =C2=A0 <span styl=
+e=3D"color:rgb(206,145,120)">&#39;profile pic&#39;</span>, <span style=3D"c=
+olor:rgb(206,145,120)">&#39;nums/length username&#39;</span>, <span style=
+=3D"color:rgb(206,145,120)">&#39;fullname words&#39;</span>, <span style=3D=
+"color:rgb(206,145,120)">&#39;nums/length fullname&#39;</span>,</div><div>=
+=C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&#39;name=3D=3Dusernam=
+e&#39;</span>, <span style=3D"color:rgb(206,145,120)">&#39;description leng=
+th&#39;</span>, <span style=3D"color:rgb(206,145,120)">&#39;external URL&#3=
+9;</span>, <span style=3D"color:rgb(206,145,120)">&#39;private&#39;</span>,=
+</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&#39;#posts=
+&#39;</span>, <span style=3D"color:rgb(206,145,120)">&#39;#followers&#39;</=
+span>, <span style=3D"color:rgb(206,145,120)">&#39;#follows&#39;</span></di=
+v><div>]</div><br><div>X_train <span style=3D"color:rgb(212,212,212)">=3D</=
+span> train_data[selected_features]</div><div>y_train <span style=3D"color:=
+rgb(212,212,212)">=3D</span> train_data[<span style=3D"color:rgb(206,145,12=
+0)">&#39;fake&#39;</span>]</div><div>X_test <span style=3D"color:rgb(212,21=
+2,212)">=3D</span> test_data[selected_features]</div><div>y_test <span styl=
+e=3D"color:rgb(212,212,212)">=3D</span> test_data[<span style=3D"color:rgb(=
+206,145,120)">&#39;fake&#39;</span>]</div><br><div><span style=3D"color:rgb=
+(106,153,85)"># Scaling</span></div><div>scaler <span style=3D"color:rgb(21=
+2,212,212)">=3D</span> StandardScaler()</div><div>X_train_scaled <span styl=
+e=3D"color:rgb(212,212,212)">=3D</span> scaler.fit_transform(X_train)</div>=
+<div>X_test_scaled <span style=3D"color:rgb(212,212,212)">=3D</span> scaler=
+.transform(X_test)</div><br><div><span style=3D"color:rgb(106,153,85)"># SM=
+OTE</span></div><div>smote <span style=3D"color:rgb(212,212,212)">=3D</span=
+> SMOTE(<span style=3D"color:rgb(156,220,254)">random_state</span><span sty=
+le=3D"color:rgb(212,212,212)">=3D</span><span style=3D"color:rgb(181,206,16=
+8)">42</span>)</div><div>X_train_resampled, y_train_resampled <span style=
+=3D"color:rgb(212,212,212)">=3D</span> smote.fit_resample(X_train_scaled, y=
+_train)</div><br><div><span style=3D"color:rgb(106,153,85)"># Hyperparamete=
+r Grids</span></div><div>param_grid_rf <span style=3D"color:rgb(212,212,212=
+)">=3D</span> {<span style=3D"color:rgb(206,145,120)">&#39;n_estimators&#39=
+;</span>: [<span style=3D"color:rgb(181,206,168)">100</span>, <span style=
+=3D"color:rgb(181,206,168)">200</span>], <span style=3D"color:rgb(206,145,1=
+20)">&#39;max_depth&#39;</span>: [<span style=3D"color:rgb(181,206,168)">10=
+</span>, <span style=3D"color:rgb(181,206,168)">20</span>], <span style=3D"=
+color:rgb(206,145,120)">&#39;min_samples_split&#39;</span>: [<span style=3D=
+"color:rgb(181,206,168)">2</span>, <span style=3D"color:rgb(181,206,168)">5=
+</span>]}</div><div>param_grid_lr <span style=3D"color:rgb(212,212,212)">=
+=3D</span> {<span style=3D"color:rgb(206,145,120)">&#39;C&#39;</span>: [<sp=
+an style=3D"color:rgb(181,206,168)">0.1</span>, <span style=3D"color:rgb(18=
+1,206,168)">1</span>, <span style=3D"color:rgb(181,206,168)">10</span>], <s=
+pan style=3D"color:rgb(206,145,120)">&#39;solver&#39;</span>: [<span style=
+=3D"color:rgb(206,145,120)">&#39;liblinear&#39;</span>]}</div><div>param_gr=
+id_cb <span style=3D"color:rgb(212,212,212)">=3D</span> {<span style=3D"col=
+or:rgb(206,145,120)">&#39;iterations&#39;</span>: [<span style=3D"color:rgb=
+(181,206,168)">100</span>, <span style=3D"color:rgb(181,206,168)">200</span=
+>], <span style=3D"color:rgb(206,145,120)">&#39;learning_rate&#39;</span>: =
+[<span style=3D"color:rgb(181,206,168)">0.05</span>, <span style=3D"color:r=
+gb(181,206,168)">0.1</span>], <span style=3D"color:rgb(206,145,120)">&#39;d=
+epth&#39;</span>: [<span style=3D"color:rgb(181,206,168)">3</span>, <span s=
+tyle=3D"color:rgb(181,206,168)">5</span>]}</div><div>param_grid_svc <span s=
+tyle=3D"color:rgb(212,212,212)">=3D</span> {<span style=3D"color:rgb(206,14=
+5,120)">&#39;C&#39;</span>: [<span style=3D"color:rgb(181,206,168)">1</span=
+>, <span style=3D"color:rgb(181,206,168)">10</span>], <span style=3D"color:=
+rgb(206,145,120)">&#39;kernel&#39;</span>: [<span style=3D"color:rgb(206,14=
+5,120)">&#39;linear&#39;</span>, <span style=3D"color:rgb(206,145,120)">&#3=
+9;rbf&#39;</span>]}</div><br><div><span style=3D"color:rgb(106,153,85)"># M=
+odels</span></div><div>models <span style=3D"color:rgb(212,212,212)">=3D</s=
+pan> {</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&#39;=
+RandomForest&#39;</span>: GridSearchCV(RandomForestClassifier(<span style=
+=3D"color:rgb(156,220,254)">random_state</span><span style=3D"color:rgb(212=
+,212,212)">=3D</span><span style=3D"color:rgb(181,206,168)">42</span>, <spa=
+n style=3D"color:rgb(156,220,254)">class_weight</span><span style=3D"color:=
+rgb(212,212,212)">=3D</span><span style=3D"color:rgb(206,145,120)">&#39;bal=
+anced&#39;</span>), param_grid_rf, <span style=3D"color:rgb(156,220,254)">c=
+v</span><span style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"col=
+or:rgb(181,206,168)">3</span>, <span style=3D"color:rgb(156,220,254)">n_job=
+s</span><span style=3D"color:rgb(212,212,212)">=3D-</span><span style=3D"co=
+lor:rgb(181,206,168)">1</span>),</div><div>=C2=A0 =C2=A0 <span style=3D"col=
+or:rgb(206,145,120)">&#39;LogisticRegression&#39;</span>: GridSearchCV(Logi=
+sticRegression(<span style=3D"color:rgb(156,220,254)">max_iter</span><span =
+style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"color:rgb(181,206=
+,168)">1000</span>, <span style=3D"color:rgb(156,220,254)">class_weight</sp=
+an><span style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"color:rg=
+b(206,145,120)">&#39;balanced&#39;</span>, <span style=3D"color:rgb(156,220=
+,254)">random_state</span><span style=3D"color:rgb(212,212,212)">=3D</span>=
+<span style=3D"color:rgb(181,206,168)">42</span>), param_grid_lr, <span sty=
+le=3D"color:rgb(156,220,254)">cv</span><span style=3D"color:rgb(212,212,212=
+)">=3D</span><span style=3D"color:rgb(181,206,168)">3</span>, <span style=
+=3D"color:rgb(156,220,254)">n_jobs</span><span style=3D"color:rgb(212,212,2=
+12)">=3D-</span><span style=3D"color:rgb(181,206,168)">1</span>),</div><div=
+>=C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&#39;CatBoost&#39;</s=
+pan>: GridSearchCV(CatBoostClassifier(<span style=3D"color:rgb(156,220,254)=
+">verbose</span><span style=3D"color:rgb(212,212,212)">=3D</span><span styl=
+e=3D"color:rgb(181,206,168)">0</span>, <span style=3D"color:rgb(156,220,254=
+)">random_state</span><span style=3D"color:rgb(212,212,212)">=3D</span><spa=
+n style=3D"color:rgb(181,206,168)">42</span>, <span style=3D"color:rgb(156,=
+220,254)">allow_writing_files</span><span style=3D"color:rgb(212,212,212)">=
+=3D</span><span style=3D"color:rgb(86,156,214)">False</span>), param_grid_c=
+b, <span style=3D"color:rgb(156,220,254)">cv</span><span style=3D"color:rgb=
+(212,212,212)">=3D</span><span style=3D"color:rgb(181,206,168)">3</span>, <=
+span style=3D"color:rgb(156,220,254)">n_jobs</span><span style=3D"color:rgb=
+(212,212,212)">=3D-</span><span style=3D"color:rgb(181,206,168)">1</span>),=
+</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(206,145,120)">&#39;SVC&#3=
+9;</span>: GridSearchCV(SVC(<span style=3D"color:rgb(156,220,254)">probabil=
+ity</span><span style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"c=
+olor:rgb(86,156,214)">True</span>, <span style=3D"color:rgb(156,220,254)">c=
+lass_weight</span><span style=3D"color:rgb(212,212,212)">=3D</span><span st=
+yle=3D"color:rgb(206,145,120)">&#39;balanced&#39;</span>, <span style=3D"co=
+lor:rgb(156,220,254)">random_state</span><span style=3D"color:rgb(212,212,2=
+12)">=3D</span><span style=3D"color:rgb(181,206,168)">42</span>), param_gri=
+d_svc, <span style=3D"color:rgb(156,220,254)">cv</span><span style=3D"color=
+:rgb(212,212,212)">=3D</span><span style=3D"color:rgb(181,206,168)">3</span=
+>, <span style=3D"color:rgb(156,220,254)">n_jobs</span><span style=3D"color=
+:rgb(212,212,212)">=3D-</span><span style=3D"color:rgb(181,206,168)">1</spa=
+n>)</div><div>}</div><br><div><span style=3D"color:rgb(106,153,85)"># Train=
+ and Evaluate</span></div><div>plt.figure(<span style=3D"color:rgb(156,220,=
+254)">figsize</span><span style=3D"color:rgb(212,212,212)">=3D</span>(<span=
+ style=3D"color:rgb(181,206,168)">8</span>, <span style=3D"color:rgb(181,20=
+6,168)">6</span>))</div><div><span style=3D"color:rgb(197,134,192)">for</sp=
+an> name, grid <span style=3D"color:rgb(197,134,192)">in</span> models.item=
+s():</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(220,220,170)">print</=
+span>(<span style=3D"color:rgb(86,156,214)">f</span><span style=3D"color:rg=
+b(206,145,120)">&quot;</span><span style=3D"color:rgb(215,186,125)">\n</spa=
+n><span style=3D"color:rgb(206,145,120)">Training </span><span style=3D"col=
+or:rgb(86,156,214)">{</span>name<span style=3D"color:rgb(86,156,214)">}</sp=
+an><span style=3D"color:rgb(206,145,120)">...&quot;</span>)</div><div>=C2=
+=A0 =C2=A0 grid.fit(X_train_resampled, y_train_resampled)</div><div>=C2=A0 =
+=C2=A0 best_model <span style=3D"color:rgb(212,212,212)">=3D</span> grid.be=
+st_estimator_</div><br><div>=C2=A0 =C2=A0 y_prob <span style=3D"color:rgb(2=
+12,212,212)">=3D</span> best_model.predict_proba(X_test_scaled)[:, <span st=
+yle=3D"color:rgb(181,206,168)">1</span>]</div><div>=C2=A0 =C2=A0 threshold =
+<span style=3D"color:rgb(212,212,212)">=3D</span> <span style=3D"color:rgb(=
+181,206,168)">0.3</span></div><div>=C2=A0 =C2=A0 y_pred <span style=3D"colo=
+r:rgb(212,212,212)">=3D</span> (y_prob <span style=3D"color:rgb(212,212,212=
+)">&gt;=3D</span> threshold).astype(<span style=3D"color:rgb(78,201,176)">i=
+nt</span>)</div><br><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(220,220,170=
+)">print</span>(<span style=3D"color:rgb(86,156,214)">f</span><span style=
+=3D"color:rgb(206,145,120)">&quot;Best Params: </span><span style=3D"color:=
+rgb(86,156,214)">{</span>grid.best_params_<span style=3D"color:rgb(86,156,2=
+14)">}</span><span style=3D"color:rgb(206,145,120)">&quot;</span>)</div><di=
+v>=C2=A0 =C2=A0 <span style=3D"color:rgb(220,220,170)">print</span>(<span s=
+tyle=3D"color:rgb(86,156,214)">f</span><span style=3D"color:rgb(206,145,120=
+)">&quot;Accuracy: </span><span style=3D"color:rgb(86,156,214)">{</span>acc=
+uracy_score(y_test, y_pred)<span style=3D"color:rgb(86,156,214)">:.4f}</spa=
+n><span style=3D"color:rgb(206,145,120)">&quot;</span>)</div><div>=C2=A0 =
+=C2=A0 <span style=3D"color:rgb(220,220,170)">print</span>(<span style=3D"c=
+olor:rgb(86,156,214)">f</span><span style=3D"color:rgb(206,145,120)">&quot;=
+Precision: </span><span style=3D"color:rgb(86,156,214)">{</span>precision_s=
+core(y_test, y_pred)<span style=3D"color:rgb(86,156,214)">:.4f}</span><span=
+ style=3D"color:rgb(206,145,120)"> | Recall: </span><span style=3D"color:rg=
+b(86,156,214)">{</span>recall_score(y_test, y_pred)<span style=3D"color:rgb=
+(86,156,214)">:.4f}</span><span style=3D"color:rgb(206,145,120)"> | F1: </s=
+pan><span style=3D"color:rgb(86,156,214)">{</span>f1_score(y_test, y_pred)<=
+span style=3D"color:rgb(86,156,214)">:.4f}</span><span style=3D"color:rgb(2=
+06,145,120)">&quot;</span>)</div><div>=C2=A0 =C2=A0 <span style=3D"color:rg=
+b(220,220,170)">print</span>(<span style=3D"color:rgb(206,145,120)">&quot;C=
+lassification Report:</span><span style=3D"color:rgb(215,186,125)">\n</span=
+><span style=3D"color:rgb(206,145,120)">&quot;</span>, classification_repor=
+t(y_test, y_pred))</div><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(220,220=
+,170)">print</span>(<span style=3D"color:rgb(206,145,120)">&quot;Confusion =
+Matrix:</span><span style=3D"color:rgb(215,186,125)">\n</span><span style=
+=3D"color:rgb(206,145,120)">&quot;</span>, confusion_matrix(y_test, y_pred)=
+)</div><br><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(106,153,85)"># ROC</=
+span></div><div>=C2=A0 =C2=A0 fpr, tpr, _ <span style=3D"color:rgb(212,212,=
+212)">=3D</span> roc_curve(y_test, y_prob)</div><div>=C2=A0 =C2=A0 roc_auc =
+<span style=3D"color:rgb(212,212,212)">=3D</span> auc(fpr, tpr)</div><div>=
+=C2=A0 =C2=A0 plt.plot(fpr, tpr, <span style=3D"color:rgb(156,220,254)">lab=
+el</span><span style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"co=
+lor:rgb(86,156,214)">f</span><span style=3D"color:rgb(206,145,120)">&#39;</=
+span><span style=3D"color:rgb(86,156,214)">{</span>name<span style=3D"color=
+:rgb(86,156,214)">}</span><span style=3D"color:rgb(206,145,120)"> (AUC =3D =
+</span><span style=3D"color:rgb(86,156,214)">{</span>roc_auc<span style=3D"=
+color:rgb(86,156,214)">:.2f}</span><span style=3D"color:rgb(206,145,120)">)=
+&#39;</span>)</div><br><div>=C2=A0 =C2=A0 <span style=3D"color:rgb(106,153,=
+85)"># Save model</span></div><div>=C2=A0 =C2=A0 joblib.dump(best_model, <s=
+pan style=3D"color:rgb(86,156,214)">f</span><span style=3D"color:rgb(206,14=
+5,120)">&#39;</span><span style=3D"color:rgb(86,156,214)">{</span>name<span=
+ style=3D"color:rgb(86,156,214)">}</span><span style=3D"color:rgb(206,145,1=
+20)">_model.pkl&#39;</span>)</div><br><div><span style=3D"color:rgb(106,153=
+,85)"># Final ROC Plot</span></div><div>plt.plot([<span style=3D"color:rgb(=
+181,206,168)">0</span>, <span style=3D"color:rgb(181,206,168)">1</span>], [=
+<span style=3D"color:rgb(181,206,168)">0</span>, <span style=3D"color:rgb(1=
+81,206,168)">1</span>], <span style=3D"color:rgb(156,220,254)">linestyle</s=
+pan><span style=3D"color:rgb(212,212,212)">=3D</span><span style=3D"color:r=
+gb(206,145,120)">&#39;--&#39;</span>, <span style=3D"color:rgb(156,220,254)=
+">color</span><span style=3D"color:rgb(212,212,212)">=3D</span><span style=
+=3D"color:rgb(206,145,120)">&#39;gray&#39;</span>)</div><div>plt.xlabel(<sp=
+an style=3D"color:rgb(206,145,120)">&#39;False Positive Rate&#39;</span>)</=
+div><div>plt.ylabel(<span style=3D"color:rgb(206,145,120)">&#39;True Positi=
+ve Rate&#39;</span>)</div><div>plt.title(<span style=3D"color:rgb(206,145,1=
+20)">&#39;ROC Curve Comparison&#39;</span>)</div><div>plt.legend()</div><di=
+v>plt.tight_layout()</div><div>plt.show()</div><div>plt.close()</div><br><d=
+iv><span style=3D"color:rgb(106,153,85)"># Precision-Recall Curve</span></d=
+iv><div>plt.figure(<span style=3D"color:rgb(156,220,254)">figsize</span><sp=
+an style=3D"color:rgb(212,212,212)">=3D</span>(<span style=3D"color:rgb(181=
+,206,168)">8</span>, <span style=3D"color:rgb(181,206,168)">6</span>))</div=
+><div><span style=3D"color:rgb(197,134,192)">for</span> name, grid <span st=
+yle=3D"color:rgb(197,134,192)">in</span> models.items():</div><div>=C2=A0 =
+=C2=A0 best_model <span style=3D"color:rgb(212,212,212)">=3D</span> grid.be=
+st_estimator_</div><div>=C2=A0 =C2=A0 y_prob <span style=3D"color:rgb(212,2=
+12,212)">=3D</span> best_model.predict_proba(X_test_scaled)[:, <span style=
+=3D"color:rgb(181,206,168)">1</span>]</div><div>=C2=A0 =C2=A0 precision, re=
+call, _ <span style=3D"color:rgb(212,212,212)">=3D</span> precision_recall_=
+curve(y_test, y_prob)</div><div>=C2=A0 =C2=A0 plt.plot(recall, precision, <=
+span style=3D"color:rgb(156,220,254)">label</span><span style=3D"color:rgb(=
+212,212,212)">=3D</span>name)</div><br><div>plt.xlabel(<span style=3D"color=
+:rgb(206,145,120)">&#39;Recall&#39;</span>)</div><div>plt.ylabel(<span styl=
+e=3D"color:rgb(206,145,120)">&#39;Precision&#39;</span>)</div><div>plt.titl=
+e(<span style=3D"color:rgb(206,145,120)">&#39;Precision-Recall Curve&#39;</=
+span>)</div><div>plt.legend()</div><div>plt.tight_layout()</div><div>plt.sh=
+ow()</div><div>plt.close()</div><br><div><span style=3D"color:rgb(106,153,8=
+5)"># Save Scaler</span></div><div>joblib.dump(scaler, <span style=3D"color=
+:rgb(206,145,120)">&#39;scaler.pkl&#39;</span>)</div><br><div><span style=
+=3D"color:rgb(106,153,85)"># Feature Importance (Random Forest)</span></div=
+><div>rf_model <span style=3D"color:rgb(212,212,212)">=3D</span> models[<sp=
+an style=3D"color:rgb(206,145,120)">&#39;RandomForest&#39;</span>].best_est=
+imator_</div><div>importances <span style=3D"color:rgb(212,212,212)">=3D</s=
+pan> rf_model.feature_importances_</div><div>plt.figure(<span style=3D"colo=
+r:rgb(156,220,254)">figsize</span><span style=3D"color:rgb(212,212,212)">=
+=3D</span>(<span style=3D"color:rgb(181,206,168)">10</span>, <span style=3D=
+"color:rgb(181,206,168)">6</span>))</div><div>plt.barh(selected_features, i=
+mportances)</div><div>plt.xlabel(<span style=3D"color:rgb(206,145,120)">&qu=
+ot;Importance&quot;</span>)</div><div>plt.title(<span style=3D"color:rgb(20=
+6,145,120)">&quot;Feature Importance (Random Forest)&quot;</span>)</div><di=
+v>plt.tight_layout()</div><div>plt.show()</div><div>plt.close()</div><br></=
+div>
+
+</div></div>
+
+--0000000000004e9dfd06360b1479--
